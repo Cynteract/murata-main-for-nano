@@ -22,9 +22,25 @@ int currentHistoryIndex = 0;
 
 USBHIDKeyboard Keyboard;
 
-void logSwipeEvent(String message) {
+// --- GESTURE ACTIONS ---
+void executeSwipeAction(String direction) {
   Serial.print("EVENT_TRIGGERED: ");
-  Serial.println(message);
+  Serial.println(direction);
+  
+  if (direction == "UP") {
+    Serial.println("UP SWIPE Detected");
+    // You can change these to KEY_PAGE_UP or other keys as needed
+    Keyboard.press('s');
+    delay(50); 
+    Keyboard.releaseAll();
+  } 
+  else if (direction == "DOWN") {
+    Serial.println("DOWN SWIPE Detected");
+    Keyboard.press('a');
+    delay(50);
+    Keyboard.releaseAll();
+  }
+  
   lastSwipeTriggerTime = millis();
 }
 void checkForVerticalSwipe() {
@@ -41,9 +57,9 @@ void checkForVerticalSwipe() {
 
     // Vertical Swipe Detection
     if (movementY > SWIPE_DISTANCE_THRESHOLD) {
-      logSwipeEvent("SWIPE UP");
+      executeSwipeAction("UP");
     } else if (movementY < -SWIPE_DISTANCE_THRESHOLD) {
-      logSwipeEvent("SWIPE DOWN");
+      executeSwipeAction("DOWN");
     }
   }
 }
