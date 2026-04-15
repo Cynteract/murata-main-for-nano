@@ -26,21 +26,20 @@ USBHIDKeyboard Keyboard;
 void executeSwipeAction(String direction) {
   Serial.print("EVENT_TRIGGERED: ");
   Serial.println(direction);
-  
+
   if (direction == "UP") {
     Serial.println("UP SWIPE Detected");
     // You can change these to KEY_PAGE_UP or other keys as needed
     Keyboard.press('s');
-    delay(50); 
+    delay(50);
     Keyboard.releaseAll();
-  } 
-  else if (direction == "DOWN") {
+  } else if (direction == "DOWN") {
     Serial.println("DOWN SWIPE Detected");
     Keyboard.press('a');
     delay(50);
     Keyboard.releaseAll();
   }
-  
+
   lastSwipeTriggerTime = millis();
 }
 void checkForVerticalSwipe() {
@@ -51,18 +50,17 @@ void checkForVerticalSwipe() {
 
   float movementY = historyPositionY[currentHistoryIndex] - historyPositionY[oldestIndex];
   unsigned long timeDelta = historyTimestamp[currentHistoryIndex] - historyTimestamp[oldestIndex];
-
+  Serial.println(movementY);
   // Check if movement occurred within the speed window
-  if (timeDelta > 0 && timeDelta < (SWIPE_TIME_WINDOW_SECONDS * 1000)) {
+  // Vertical Swipe Detection
+  if (movementY > SWIPE_DISTANCE_THRESHOLD) {
 
-    // Vertical Swipe Detection
-    if (movementY > SWIPE_DISTANCE_THRESHOLD) {
-      executeSwipeAction("UP");
-    } else if (movementY < -SWIPE_DISTANCE_THRESHOLD) {
-      executeSwipeAction("DOWN");
-    }
+    executeSwipeAction("UP");
+  } else if (movementY < -SWIPE_DISTANCE_THRESHOLD) {
+    executeSwipeAction("DOWN");
   }
 }
+
 
 
 
@@ -73,6 +71,7 @@ void setup() {
   Serial1.begin(9600, SERIAL_8N1, 0, 1);
   Keyboard.begin();
   USB.begin();
+  delay(2000);
   calibrationStartTime = millis();
   Serial.println("Vertical Mode Online: Starting 5s Calibration...");
 }
@@ -110,10 +109,8 @@ void loop() {
         float adjustedTop = rawPressureTop - averageTop;
         float adjustedBottom = rawPressureBottom - averageBottom;
 
-        if (adjustedTop < NOISE_GATE
-      ) adjustedTop = 0;
-        if (adjustedBottom < NOISE_GATE
-      ) adjustedBottom = 0;
+        if (adjustedTop < NOISE_GATE) adjustedTop = 0;
+        if (adjustedBottom < NOISE_GATE) adjustedBottom = 0;
 
         // 4. Calculate Vertical Coordinate
         // Positive Y = Top pressure | Negative Y = Bottom pressure
