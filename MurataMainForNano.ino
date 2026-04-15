@@ -1,27 +1,68 @@
 #include "USB.h"
 #include "USBHIDKeyboard.h"
 
+// --- CONSTANTS & THRESHOLDS ---
+const unsigned long CALIBRATION_DURATION_MILLISECONDS = 5000;
+const int NOISE_GATE = 100;
+const int SWIPE_DISTANCE_THRESHOLD = 50;
+const float SWIPE_TIME_WINDOW_SECONDS = 0.5;
+const unsigned long COOLDOWN_WAIT_TIME_MILLISECONDS = 600;
+
+// --- CALIBRATION STATE ---
+float averageBottom = 0, averageTop = 0;
+bool isCurrentlyCalibrating = true;
+unsigned long calibrationStartTime;
+unsigned long lastSwipeTriggerTime = 0;
+
+// --- GESTURE HISTORY (Circular Buffer) ---
+const int HISTORY_BUFFER_SIZE = 50;
+float historyPositionY[HISTORY_BUFFER_SIZE];
+unsigned long historyTimestamp[HISTORY_BUFFER_SIZE];
+int currentHistoryIndex = 0;
+
 USBHIDKeyboard Keyboard;
 
-// --- CONFIGURATION ---
-const int NOISE_GATE = 100;      
-const float SWIPE_DIST = 0.6;    
-const int SWIPE_WINDOW = 500;    
-const int COOL_DOWN = 600;       
+void logSwipeEvent(String message) {
+  Serial.print("EVENT_TRIGGERED: ");
+  Serial.println(message);
+  lastSwipeTriggerTime = millis();
+}
+void checkForVerticalSwipe() {
+  if (millis() - lastSwipeTriggerTime < COOLDOWN_WAIT_TIME_MILLISECONDS) return;
 
-// History for tracking movement
-float historyX[20];
-float historyY[20];
-unsigned long historyTime[20];
-int historyIdx = 0;
-unsigned long lastTriggerTime = 0;
+  // Identify the oldest data point to calculate movement over time
+  int oldestIndex = (currentHistoryIndex + 1) % HISTORY_BUFFER_SIZE;
+
+  float movementY = historyPositionY[currentHistoryIndex] - historyPositionY[oldestIndex];
+  unsigned long timeDelta = historyTimestamp[currentHistoryIndex] - historyTimestamp[oldestIndex];
+
+  // Check if movement occurred within the speed window
+  if (timeDelta > 0 && timeDelta < (SWIPE_TIME_WINDOW_SECONDS * 1000)) {
+
+    // Vertical Swipe Detection
+    if (movementY > SWIPE_DISTANCE_THRESHOLD) {
+      logSwipeEvent("SWIPE UP");
+    } else if (movementY < -SWIPE_DISTANCE_THRESHOLD) {
+      logSwipeEvent("SWIPE DOWN");
+    }
+  }
+}
+
+
+
+
 
 void setup() {
   Serial.begin(115200);
-  Serial1.begin(9600, SERIAL_8N1, 0, 1); 
+  Serial1.begin(9600, SERIAL_8N1, 0, 1);
   Keyboard.begin();
   USB.begin();
+  calibrationStartTime = millis();
+  Serial.println("Vertical Mode Online: Starting 5s Calibration...");
 }
+
+
+
 
 void loop() {
   if (Serial1.available()) {
@@ -31,62 +72,53 @@ void loop() {
     if (incoming.length() > 0) {
       int v1, v2, v3, v4;
       if (sscanf(incoming.c_str(), "%d,%d,%d,%d", &v1, &v2, &v3, &v4) == 4) {
-        
-        // --- PRINT RAW DATA TO MONITOR ---
-        Serial.print(v1); Serial.print(",");
-        Serial.print(v2); Serial.print(",");
-        Serial.print(v3); Serial.print(",");
-        Serial.println(v4);
+        int rawPressureTop = abs(v2);
+        int rawPressureBottom = abs(v3);
+        // 2. Calibration Logic
+        if (isCurrentlyCalibrating) {
+          static long sampleCount = 0;
+          averageTop += rawPressureTop;
+          averageBottom += rawPressureBottom;
+          sampleCount++;
 
-        // --- SWIPE LOGIC ---
-        float pTL = abs(v1); float pTR = abs(v2);
-        float pBL = abs(v3); float pBR = abs(v4);
-        float total = pTL + pTR + pBL + pBR;
-
-        if (total > NOISE_GATE) {
-          float touchX = (((pTR + pBR) / total) * 2.0) - 1.0;
-          float touchY = (((pTL + pTR) / total) * 2.0) - 1.0;
-
-          unsigned long now = millis();
-          historyX[historyIdx] = touchX;
-          historyY[historyIdx] = touchY;
-          historyTime[historyIdx] = now;
-          historyIdx = (historyIdx + 1) % 20;
-
-          if (now - lastTriggerTime > COOL_DOWN) {
-            checkSwipe(now);
+          if (millis() - calibrationStartTime > CALIBRATION_DURATION_MILLISECONDS) {
+            averageTop /= sampleCount;
+            averageBottom /= sampleCount;
+            isCurrentlyCalibrating = false;
+            Serial.println("Calibration Complete. Vertical Tracking Active.");
           }
+          return;
         }
+
+        // 3. Apply Calibration Offsets and Noise Gate
+        float adjustedTop = rawPressureTop - averageTop;
+        float adjustedBottom = rawPressureBottom - averageBottom;
+
+        if (adjustedTop < NOISE_GATE
+      ) adjustedTop = 0;
+        if (adjustedBottom < NOISE_GATE
+      ) adjustedBottom = 0;
+
+        // 4. Calculate Vertical Coordinate
+        // Positive Y = Top pressure | Negative Y = Bottom pressure
+        float currentTouchY = adjustedTop - adjustedBottom;
+
+        // 5. Update History
+        historyPositionY[currentHistoryIndex] = currentTouchY;
+        historyTimestamp[currentHistoryIndex] = millis();
+
+        // 6. Process Vertical Gestures
+        checkForVerticalSwipe();
+
+        // Increment buffer index
+        currentHistoryIndex = (currentHistoryIndex + 1) % HISTORY_BUFFER_SIZE;
+
+        // // 7. Data Output (Simplified for Top/Bottom only)
+        // Serial.print(adjustedTop);
+        // Serial.print(",");
+        // Serial.println(adjustedBottom);
       }
+      delay(10);
     }
   }
-}
-
-void checkSwipe(unsigned long currentTime) {
-  int oldestIdx = historyIdx; 
-  float moveX = historyX[(historyIdx + 19) % 20] - historyX[oldestIdx];
-  float moveY = historyY[(historyIdx + 19) % 20] - historyY[oldestIdx];
-  unsigned long duration = currentTime - historyTime[oldestIdx];
-
-  if (duration < SWIPE_WINDOW && duration > 50) {
-    if (abs(moveX) > abs(moveY) * 1.5) {
-      if (moveX > SWIPE_DIST) triggerSwipe("RIGHT");
-      else if (moveX < -SWIPE_DIST) triggerSwipe("LEFT");
-    } 
-    else if (abs(moveY) > abs(moveX) * 1.5) {
-      if (moveY > SWIPE_DIST) triggerSwipe("UP");
-      else if (moveY < -SWIPE_DIST) triggerSwipe("DOWN");
-    }
-  }
-}
-
-void triggerSwipe(String direction) {
-  lastTriggerTime = millis();
-  Serial.print(">>> [DETECTED SWIPE]: "); 
-  Serial.println(direction);
-
-  if (direction == "RIGHT") Keyboard.write(KEY_RIGHT_ARROW);
-  if (direction == "LEFT")  Keyboard.write(KEY_LEFT_ARROW);
-  if (direction == "UP")    Keyboard.write(KEY_UP_ARROW);
-  if (direction == "DOWN")  Keyboard.write(KEY_DOWN_ARROW);
 }
