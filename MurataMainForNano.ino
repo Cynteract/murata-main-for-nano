@@ -85,6 +85,10 @@ void loop() {
     incoming.trim();
 
     if (incoming.length() > 0) {
+      // v1: yellow
+      // v2: red
+      // v3: blue
+      // v4: green
       int v1, v2, v3, v4;
       if (sscanf(incoming.c_str(), "%d,%d,%d,%d", &v1, &v2, &v3, &v4) == 4) {
         int rawPressureTop = abs(v2);
