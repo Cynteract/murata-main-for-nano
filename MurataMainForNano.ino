@@ -23,18 +23,22 @@ int currentHistoryIndex = 0;
 USBHIDKeyboard Keyboard;
 
 // --- GESTURE ACTIONS ---
-void executeSwipeAction(String direction) {
+void executeSwipeAction(String direction)
+{
   Serial.print("EVENT_TRIGGERED: ");
   Serial.println(direction);
 
-  if (direction == "UP") {
-    Serial.println("UP SWIPE Detected");
-    // You can change these to KEY_PAGE_UP or other keys as needed
+  if (direction == "UP")
+  {
+    // Serial.println("UP SWIPE Detected");
+    //  You can change these to KEY_PAGE_UP or other keys as needed
     Keyboard.press('s');
     delay(50);
     Keyboard.releaseAll();
-  } else if (direction == "DOWN") {
-    Serial.println("DOWN SWIPE Detected");
+  }
+  else if (direction == "DOWN")
+  {
+    // Serial.println("DOWN SWIPE Detected");
     Keyboard.press('a');
     delay(50);
     Keyboard.releaseAll();
@@ -42,31 +46,32 @@ void executeSwipeAction(String direction) {
 
   lastSwipeTriggerTime = millis();
 }
-void checkForVerticalSwipe() {
-  if (millis() - lastSwipeTriggerTime < COOLDOWN_WAIT_TIME_MILLISECONDS) return;
+void checkForVerticalSwipe()
+{
+  if (millis() - lastSwipeTriggerTime < COOLDOWN_WAIT_TIME_MILLISECONDS)
+    return;
 
   // Identify the oldest data point to calculate movement over time
   int oldestIndex = (currentHistoryIndex + 1) % HISTORY_BUFFER_SIZE;
 
   float movementY = historyPositionY[currentHistoryIndex] - historyPositionY[oldestIndex];
   unsigned long timeDelta = historyTimestamp[currentHistoryIndex] - historyTimestamp[oldestIndex];
-  Serial.println(movementY);
+  //Serial.println(movementY);
   // Check if movement occurred within the speed window
   // Vertical Swipe Detection
-  if (movementY > SWIPE_DISTANCE_THRESHOLD) {
+  if (movementY > SWIPE_DISTANCE_THRESHOLD)
+  {
 
     executeSwipeAction("UP");
-  } else if (movementY < -SWIPE_DISTANCE_THRESHOLD) {
+  }
+  else if (movementY < -SWIPE_DISTANCE_THRESHOLD)
+  {
     executeSwipeAction("DOWN");
   }
 }
 
-
-
-
-
-
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   Serial1.begin(9600, SERIAL_8N1, 0, 1);
   Keyboard.begin();
@@ -76,31 +81,34 @@ void setup() {
   Serial.println("Vertical Mode Online: Starting 5s Calibration...");
 }
 
-
-
-
-void loop() {
-  if (Serial1.available()) {
+void loop()
+{
+  if (Serial1.available())
+  {
     String incoming = Serial1.readStringUntil('\n');
     incoming.trim();
 
-    if (incoming.length() > 0) {
+    if (incoming.length() > 0)
+    {
       // v1: yellow
       // v2: red
       // v3: blue
       // v4: green
       int v1, v2, v3, v4;
-      if (sscanf(incoming.c_str(), "%d,%d,%d,%d", &v1, &v2, &v3, &v4) == 4) {
+      if (sscanf(incoming.c_str(), "%d,%d,%d,%d", &v1, &v2, &v3, &v4) == 4)
+      {
         int rawPressureTop = abs(v2);
         int rawPressureBottom = abs(v3);
         // 2. Calibration Logic
-        if (isCurrentlyCalibrating) {
+        if (isCurrentlyCalibrating)
+        {
           static long sampleCount = 0;
           averageTop += rawPressureTop;
           averageBottom += rawPressureBottom;
           sampleCount++;
 
-          if (millis() - calibrationStartTime > CALIBRATION_DURATION_MILLISECONDS) {
+          if (millis() - calibrationStartTime > CALIBRATION_DURATION_MILLISECONDS)
+          {
             averageTop /= sampleCount;
             averageBottom /= sampleCount;
             isCurrentlyCalibrating = false;
@@ -113,8 +121,10 @@ void loop() {
         float adjustedTop = rawPressureTop - averageTop;
         float adjustedBottom = rawPressureBottom - averageBottom;
 
-        if (adjustedTop < NOISE_GATE) adjustedTop = 0;
-        if (adjustedBottom < NOISE_GATE) adjustedBottom = 0;
+        if (adjustedTop < NOISE_GATE)
+          adjustedTop = 0;
+        if (adjustedBottom < NOISE_GATE)
+          adjustedBottom = 0;
 
         // 4. Calculate Vertical Coordinate
         // Positive Y = Top pressure | Negative Y = Bottom pressure
