@@ -3,9 +3,10 @@
 
 // --- CONSTANTS & THRESHOLDS ---
 const int NOISE_GATE = 100;
-const int TRIGGER_THREASHOLD = 200;
+const int TRIGGER_THREASHOLD =  100;
 const unsigned long CALIBRATION_DURATION_MILLISECONDS = 5000;
 const unsigned long SWIPE_WINDOW_MILLISECONDS = 500;
+const unsigned long SWIPE_PAUSE_MILLISECONDS = 200;
 
 // --- CALIBRATION STATE ---
 float averageBottom = 0, averageTop = 0;
@@ -16,6 +17,9 @@ unsigned long lastTopTriggerTime = 0, lastBottomTriggerTime = 0;
 USBHIDKeyboard Keyboard;
 bool blockTopSwipe = false;
 bool blockBottomSwipe = false;
+unsigned long lastSwipeTime=0;
+
+
 void executeSwipeAction(String direction) {
   Serial.print("EVENT_TRIGGERED: ");
   Serial.println(direction);
@@ -90,8 +94,9 @@ void loop() {
         if (adjustedTop > TRIGGER_THREASHOLD) {
           lastTopTriggerTime = millis();
           blockBottomSwipe = false;
-          if (!blockTopSwipe) {
+          if (!blockTopSwipe&&millis()>lastSwipeTime+SWIPE_PAUSE_MILLISECONDS) {
             blockTopSwipe = true;
+            lastSwipeTime=millis();
             if (millis() < lastBottomTriggerTime + SWIPE_WINDOW_MILLISECONDS) {
               executeSwipeAction("UP");
             }
@@ -100,8 +105,9 @@ void loop() {
         if (adjustedBottom > TRIGGER_THREASHOLD) {
           lastBottomTriggerTime = millis();
           blockTopSwipe = false;
-          if (!blockBottomSwipe) {
+          if (!blockBottomSwipe&&millis()>lastSwipeTime+SWIPE_PAUSE_MILLISECONDS) {
             blockBottomSwipe = true;
+            lastSwipeTime=millis();
             if (millis() < lastTopTriggerTime + SWIPE_WINDOW_MILLISECONDS) {
               executeSwipeAction("DOWN");
             }
