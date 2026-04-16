@@ -82,10 +82,10 @@ void loop() {
         float adjustedTop = rawPressureTop - averageTop;
         float adjustedBottom = rawPressureBottom - averageBottom;
 
-        // if (adjustedTop < NOISE_GATE)
-        //   adjustedTop = 0;
-        // if (adjustedBottom < NOISE_GATE)
-        //   adjustedBottom = 0;
+        if (adjustedTop < NOISE_GATE)
+          adjustedTop = 0;
+        if (adjustedBottom < NOISE_GATE)
+          adjustedBottom = 0;
         
         if (adjustedTop > adjustedBottom)
           adjustedBottom = 0;
