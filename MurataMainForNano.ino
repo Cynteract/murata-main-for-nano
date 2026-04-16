@@ -2,11 +2,11 @@
 #include "USBHIDKeyboard.h"
 
 // --- CONSTANTS & THRESHOLDS ---
-const int NOISE_GATE = 100;
-const int TRIGGER_THREASHOLD =  50;
+const int NOISE_GATE = 30;
+const int TRIGGER_THREASHOLD =  30;
 const unsigned long CALIBRATION_DURATION_MILLISECONDS = 5000;
 const unsigned long SWIPE_WINDOW_MILLISECONDS = 300;
-const unsigned long SWIPE_PAUSE_MILLISECONDS = 200;
+const unsigned long SWIPE_PAUSE_MILLISECONDS = 0;
 
 // --- CALIBRATION STATE ---
 float averageBottom = 0, averageTop = 0;
