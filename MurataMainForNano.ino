@@ -3,9 +3,9 @@
 
 // --- CONSTANTS & THRESHOLDS ---
 const int NOISE_GATE = 100;
-const int TRIGGER_THREASHOLD =  100;
+const int TRIGGER_THREASHOLD =  50;
 const unsigned long CALIBRATION_DURATION_MILLISECONDS = 5000;
-const unsigned long SWIPE_WINDOW_MILLISECONDS = 500;
+const unsigned long SWIPE_WINDOW_MILLISECONDS = 300;
 const unsigned long SWIPE_PAUSE_MILLISECONDS = 200;
 
 // --- CALIBRATION STATE ---
@@ -82,11 +82,15 @@ void loop() {
         float adjustedTop = rawPressureTop - averageTop;
         float adjustedBottom = rawPressureBottom - averageBottom;
 
-        if (adjustedTop < NOISE_GATE)
-          adjustedTop = 0;
-        if (adjustedBottom < NOISE_GATE)
+        // if (adjustedTop < NOISE_GATE)
+        //   adjustedTop = 0;
+        // if (adjustedBottom < NOISE_GATE)
+        //   adjustedBottom = 0;
+        
+        if (adjustedTop > adjustedBottom)
           adjustedBottom = 0;
-
+        if (adjustedBottom > adjustedTop)
+          adjustedTop = 0;
         // 4. Calculate Vertical Coordinate
         // Positive Y = Top pressure | Negative Y = Bottom pressure
         float currentTouchY = adjustedTop - adjustedBottom;
