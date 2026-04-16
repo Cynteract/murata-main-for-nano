@@ -60,8 +60,8 @@ void loop() {
       // v4: green
       int v1, v2, v3, v4;
       if (sscanf(incoming.c_str(), "%d,%d,%d,%d", &v1, &v2, &v3, &v4) == 4) {
-        int rawPressureTop = abs(v2);
-        int rawPressureBottom = abs(v3);
+        int rawPressureTop = -v2;//Touch results in negative values, release in positive
+        int rawPressureBottom = -v3;
         // 2. Calibration Logic
         if (isCurrentlyCalibrating) {
           static long sampleCount = 0;
