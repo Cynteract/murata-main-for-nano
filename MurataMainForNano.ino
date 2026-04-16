@@ -27,12 +27,12 @@ void executeSwipeAction(String direction) {
   if (direction == "UP") {
     // Serial.println("UP SWIPE Detected");
     //  You can change these to KEY_PAGE_UP or other keys as needed
-    Keyboard.press('s');
+    Keyboard.press('a');
     delay(50);
     Keyboard.releaseAll();
   } else if (direction == "DOWN") {
     // Serial.println("DOWN SWIPE Detected");
-    Keyboard.press('a');
+    Keyboard.press('s');
     delay(50);
     Keyboard.releaseAll();
   }
