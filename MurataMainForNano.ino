@@ -2,76 +2,39 @@
 #include "USBHIDKeyboard.h"
 
 // --- CONSTANTS & THRESHOLDS ---
-const unsigned long CALIBRATION_DURATION_MILLISECONDS = 5000;
 const int NOISE_GATE = 100;
-const int SWIPE_DISTANCE_THRESHOLD = 50;
-const float SWIPE_TIME_WINDOW_SECONDS = 0.5;
-const unsigned long COOLDOWN_WAIT_TIME_MILLISECONDS = 600;
+const int TRIGGER_THREASHOLD = 200;
+const unsigned long CALIBRATION_DURATION_MILLISECONDS = 5000;
+const unsigned long SWIPE_WINDOW_MILLISECONDS = 500;
 
 // --- CALIBRATION STATE ---
 float averageBottom = 0, averageTop = 0;
 bool isCurrentlyCalibrating = true;
 unsigned long calibrationStartTime;
-unsigned long lastSwipeTriggerTime = 0;
-
-// --- GESTURE HISTORY (Circular Buffer) ---
-const int HISTORY_BUFFER_SIZE = 50;
-float historyPositionY[HISTORY_BUFFER_SIZE];
-unsigned long historyTimestamp[HISTORY_BUFFER_SIZE];
-int currentHistoryIndex = 0;
-
+// --- SWIPE DETECTION ---
+unsigned long lastTopTriggerTime = 0, lastBottomTriggerTime = 0;
 USBHIDKeyboard Keyboard;
-
-// --- GESTURE ACTIONS ---
-void executeSwipeAction(String direction)
-{
+bool blockTopSwipe = false;
+bool blockBottomSwipe = false;
+void executeSwipeAction(String direction) {
   Serial.print("EVENT_TRIGGERED: ");
   Serial.println(direction);
 
-  if (direction == "UP")
-  {
+  if (direction == "UP") {
     // Serial.println("UP SWIPE Detected");
     //  You can change these to KEY_PAGE_UP or other keys as needed
     Keyboard.press('s');
     delay(50);
     Keyboard.releaseAll();
-  }
-  else if (direction == "DOWN")
-  {
+  } else if (direction == "DOWN") {
     // Serial.println("DOWN SWIPE Detected");
     Keyboard.press('a');
     delay(50);
     Keyboard.releaseAll();
   }
-
-  lastSwipeTriggerTime = millis();
-}
-void checkForVerticalSwipe()
-{
-  if (millis() - lastSwipeTriggerTime < COOLDOWN_WAIT_TIME_MILLISECONDS)
-    return;
-
-  // Identify the oldest data point to calculate movement over time
-  int oldestIndex = (currentHistoryIndex + 1) % HISTORY_BUFFER_SIZE;
-
-  float movementY = historyPositionY[currentHistoryIndex] - historyPositionY[oldestIndex];
-  unsigned long timeDelta = historyTimestamp[currentHistoryIndex] - historyTimestamp[oldestIndex];
-  //Serial.println(movementY);
-  // Check if movement occurred within the speed window
-  // Vertical Swipe Detection
-  if (movementY > SWIPE_DISTANCE_THRESHOLD)
-  {
-
-    executeSwipeAction("UP");
-  }
-  else if (movementY < -SWIPE_DISTANCE_THRESHOLD)
-  {
-    executeSwipeAction("DOWN");
-  }
 }
 
-void setup()
-{
+void setup() {
   Serial.begin(115200);
   Serial1.begin(9600, SERIAL_8N1, 0, 1);
   Keyboard.begin();
@@ -81,34 +44,28 @@ void setup()
   Serial.println("Vertical Mode Online: Starting 5s Calibration...");
 }
 
-void loop()
-{
-  if (Serial1.available())
-  {
+void loop() {
+  if (Serial1.available()) {
     String incoming = Serial1.readStringUntil('\n');
     incoming.trim();
 
-    if (incoming.length() > 0)
-    {
+    if (incoming.length() > 0) {
       // v1: yellow
       // v2: red
       // v3: blue
       // v4: green
       int v1, v2, v3, v4;
-      if (sscanf(incoming.c_str(), "%d,%d,%d,%d", &v1, &v2, &v3, &v4) == 4)
-      {
+      if (sscanf(incoming.c_str(), "%d,%d,%d,%d", &v1, &v2, &v3, &v4) == 4) {
         int rawPressureTop = abs(v2);
         int rawPressureBottom = abs(v3);
         // 2. Calibration Logic
-        if (isCurrentlyCalibrating)
-        {
+        if (isCurrentlyCalibrating) {
           static long sampleCount = 0;
           averageTop += rawPressureTop;
           averageBottom += rawPressureBottom;
           sampleCount++;
 
-          if (millis() - calibrationStartTime > CALIBRATION_DURATION_MILLISECONDS)
-          {
+          if (millis() - calibrationStartTime > CALIBRATION_DURATION_MILLISECONDS) {
             averageTop /= sampleCount;
             averageBottom /= sampleCount;
             isCurrentlyCalibrating = false;
@@ -130,15 +87,26 @@ void loop()
         // Positive Y = Top pressure | Negative Y = Bottom pressure
         float currentTouchY = adjustedTop - adjustedBottom;
 
-        // 5. Update History
-        historyPositionY[currentHistoryIndex] = currentTouchY;
-        historyTimestamp[currentHistoryIndex] = millis();
-
-        // 6. Process Vertical Gestures
-        checkForVerticalSwipe();
-
-        // Increment buffer index
-        currentHistoryIndex = (currentHistoryIndex + 1) % HISTORY_BUFFER_SIZE;
+        if (adjustedTop > TRIGGER_THREASHOLD) {
+          lastTopTriggerTime = millis();
+          blockBottomSwipe = false;
+          if (!blockTopSwipe) {
+            blockTopSwipe = true;
+            if (millis() < lastBottomTriggerTime + SWIPE_WINDOW_MILLISECONDS) {
+              executeSwipeAction("UP");
+            }
+          }
+        }
+        if (adjustedBottom > TRIGGER_THREASHOLD) {
+          lastBottomTriggerTime = millis();
+          blockTopSwipe = false;
+          if (!blockBottomSwipe) {
+            blockBottomSwipe = true;
+            if (millis() < lastTopTriggerTime + SWIPE_WINDOW_MILLISECONDS) {
+              executeSwipeAction("DOWN");
+            }
+          }
+        }
 
         // // 7. Data Output (Simplified for Top/Bottom only)
         // Serial.print(adjustedTop);
